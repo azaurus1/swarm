@@ -17,10 +17,10 @@ type Drone struct {
 	VY                float64
 	TransmissionRange float64
 	RoutingTable      routing.RoutingTable
-	DataChan          chan string
+	DataChan          chan []byte
 }
 
-func (d *Drone) Start(radioAddr string, wg *sync.WaitGroup, radioChan chan string) {
+func (d *Drone) Start(wg *sync.WaitGroup, radioChan chan []byte) {
 	defer wg.Done()
 	// channels
 
@@ -38,7 +38,7 @@ func (d *Drone) Start(radioAddr string, wg *sync.WaitGroup, radioChan chan strin
 		defer wg.Done()
 		// data out - radioChan
 		id := strconv.Itoa(d.Id)
-		radioChan <- id
+		radioChan <- []byte(id)
 	}()
 
 }

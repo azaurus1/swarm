@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strings"
 	"time"
 )
 
-func Client(ctx context.Context, address string, reader io.Reader) error {
+func Client(ctx context.Context, address string, data chan string) error {
 	raddr, err := net.ResolveUDPAddr("udp", address)
 	if err != nil {
 		return err
@@ -24,9 +25,13 @@ func Client(ctx context.Context, address string, reader io.Reader) error {
 	doneChan := make(chan error, 1)
 
 	go func() {
-		n, err := io.Copy(conn, reader)
+
+		msg := <-data
+
+		r := strings.NewReader(msg)
+
+		n, err := io.Copy(conn, r)
 		if err != nil {
-			doneChan <- err
 			return
 		}
 

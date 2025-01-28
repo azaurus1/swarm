@@ -17,6 +17,7 @@ var runCmd = &cobra.Command{
 	Short: "Run the simulation",
 	Run: func(cmd *cobra.Command, args []string) {
 		var wg sync.WaitGroup
+		var dataChannels []chan string
 
 		r := radio.Radio{
 			Addr: "localhost:50000",
@@ -30,10 +31,18 @@ var runCmd = &cobra.Command{
 
 		for _, d := range drones {
 			wg.Add(1)
-			go d.Start(r.Addr, &wg)
+
+			dc := make(chan string)
+			dataChannels = append(dataChannels, dc)
+
+			go d.Start(r.Addr, &wg, dc)
 		}
 		wg.Add(1)
 		go r.Serve(drones, &wg)
+
+		for _, c := range dataChannels {
+			c <- "test"
+		}
 
 		wg.Wait()
 	},

@@ -24,7 +24,7 @@ type Drone struct {
 	RadioConn         *net.UDPConn
 }
 
-func (d *Drone) Start(radioAddr string, wg *sync.WaitGroup) {
+func (d *Drone) Start(radioAddr string, wg *sync.WaitGroup, dataChan chan string) {
 	defer wg.Done()
 
 	udpAddr, err := net.ResolveUDPAddr("udp", d.Addr)
@@ -59,7 +59,7 @@ func (d *Drone) Start(radioAddr string, wg *sync.WaitGroup) {
 
 	log.Println("listening on", d.Addr)
 
-	go udp.Client(context.Background(), d.RadioConn.RemoteAddr().String(), teeReader)
+	go udp.Client(context.Background(), d.RadioConn.RemoteAddr().String(), dataChan)
 
 }
 

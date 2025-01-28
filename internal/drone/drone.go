@@ -1,14 +1,12 @@
 package drone
 
 import (
-	"context"
 	"fmt"
 	"log"
-	"net"
+	"strconv"
 	"sync"
 
 	"github.com/azaurus1/swarm/internal/routing"
-	"github.com/azaurus1/swarm/internal/udp"
 )
 
 type Drone struct {
@@ -19,58 +17,30 @@ type Drone struct {
 	VY                float64
 	TransmissionRange float64
 	RoutingTable      routing.RoutingTable
-	Addr              string
-	UDPConn           *net.UDPConn
-	RadioConn         *net.UDPConn
+	DataChan          chan string
 }
 
-func (d *Drone) Start(radioAddr string, wg *sync.WaitGroup, dataChan chan string) {
+func (d *Drone) Start(radioAddr string, wg *sync.WaitGroup, radioChan chan string) {
 	defer wg.Done()
+	// channels
 
-	udpAddr, err := net.ResolveUDPAddr("udp", d.Addr)
-	if err != nil {
-		log.Println("error resolving udp address: ", err)
-		return
-	}
+	// data in - dataChan (this is data from radio/air)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for msg := range d.DataChan {
+			log.Printf("drone %d > message received: %s", d.Id, msg)
+		}
+	}()
 
-	conn, err := net.ListenUDP("udp", udpAddr)
-	if err != nil {
-		log.Println("error listening on udp address: ", err)
-		return
-	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		// data out - radioChan
+		id := strconv.Itoa(d.Id)
+		radioChan <- id
+	}()
 
-	d.UDPConn = conn
-	defer d.UDPConn.Close()
-
-	// set up radio connection
-	rUdpStr, err := net.ResolveUDPAddr("udp", radioAddr)
-	if err != nil {
-		log.Println("error resolving udp address: ", err)
-		return
-	}
-	r, err := net.DialUDP("udp", nil, rUdpStr)
-	if err != nil {
-		log.Println("error dialling udp address: ", err)
-		return
-	}
-
-	d.RadioConn = r
-	defer d.RadioConn.Close()
-
-	log.Println("listening on", d.Addr)
-
-	go udp.Client(context.Background(), d.RadioConn.RemoteAddr().String(), dataChan)
-
-}
-
-func (d *Drone) SendMessage() {
-	d.RadioConn.Write([]byte(d.ToString()))
-	var buf [512]byte
-	_, _, err := d.RadioConn.ReadFromUDP(buf[0:])
-	if err != nil {
-		log.Println("error reading from UDP: ", err)
-	}
-	log.Printf("Drone %d> %s", d.Id, string(buf[0:]))
 }
 
 func (d *Drone) ToString() string {

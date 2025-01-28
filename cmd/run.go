@@ -18,33 +18,29 @@ var runCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		var wg sync.WaitGroup
 		var dataChannels []chan string
+		var radioChan chan string
 
-		r := radio.Radio{
-			Addr: "localhost:50000",
-		}
+		r := radio.Radio{}
 		drones := []drone.Drone{
-			{Id: 1, X: 100, Y: 100, VX: 0.5, VY: 0.2, TransmissionRange: 10, Addr: "localhost:50001"},
-			{Id: 2, X: 200, Y: 200, VX: -0.1, VY: 0.3, TransmissionRange: 5, Addr: "localhost:50002"},
-			{Id: 3, X: 300, Y: 20, VX: -0.1, VY: 0.3, TransmissionRange: 3, Addr: "localhost:50003"},
-			{Id: 4, X: 100, Y: 200, VX: -0.1, VY: 0.3, TransmissionRange: 10, Addr: "localhost:50004"},
+			{Id: 1, X: 100, Y: 100, VX: 0.5, VY: 0.2, TransmissionRange: 10, DataChan: make(chan string, 10)},
+			{Id: 2, X: 200, Y: 200, VX: -0.1, VY: 0.3, TransmissionRange: 5, DataChan: make(chan string, 10)},
+			{Id: 3, X: 300, Y: 20, VX: -0.1, VY: 0.3, TransmissionRange: 3, DataChan: make(chan string, 10)},
+			{Id: 4, X: 100, Y: 200, VX: -0.1, VY: 0.3, TransmissionRange: 10, DataChan: make(chan string, 10)},
 		}
 		wg.Add(1)
-		go r.Serve(drones, &wg)
+		radioChan = make(chan string)
+		go r.Serve(drones, &wg, radioChan)
 
 		for _, d := range drones {
 			wg.Add(1)
+			dataChannels = append(dataChannels, d.DataChan)
 
-			dc := make(chan string)
-			dataChannels = append(dataChannels, dc)
-
-			go d.Start(r.Addr, &wg, dc)
+			go d.Start(r.Addr, &wg, radioChan)
 		}
 
-		for _, c := range dataChannels {
-
-			c <- "testing"
-
-		}
+		// for _, c := range dataChannels {
+		// 	c <- "testing"
+		// }
 
 		wg.Wait()
 	},

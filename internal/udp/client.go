@@ -35,7 +35,7 @@ func Client(ctx context.Context, address string, data chan string) error {
 			return
 		}
 
-		fmt.Printf("packet-written: bytes=%d\n", n)
+		fmt.Printf("client > packet-written: bytes=%d\n", n)
 
 		buffer := make([]byte, 1000)
 
@@ -52,7 +52,7 @@ func Client(ctx context.Context, address string, data chan string) error {
 			return
 		}
 
-		fmt.Printf("packet-received: bytes=%d from=%s\n", nRead, addr.String())
+		fmt.Printf("client > packet-received: bytes=%d from=%s\n", nRead, addr.String())
 
 		doneChan <- nil
 
@@ -60,7 +60,7 @@ func Client(ctx context.Context, address string, data chan string) error {
 
 	select {
 	case <-ctx.Done():
-		fmt.Println("cancelled")
+		fmt.Println("client cancelled")
 		err = ctx.Err()
 	case err = <-doneChan:
 	}

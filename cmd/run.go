@@ -28,6 +28,8 @@ var runCmd = &cobra.Command{
 			{Id: 3, X: 300, Y: 20, VX: -0.1, VY: 0.3, TransmissionRange: 3, Addr: "localhost:50003"},
 			{Id: 4, X: 100, Y: 200, VX: -0.1, VY: 0.3, TransmissionRange: 10, Addr: "localhost:50004"},
 		}
+		wg.Add(1)
+		go r.Serve(drones, &wg)
 
 		for _, d := range drones {
 			wg.Add(1)
@@ -37,11 +39,11 @@ var runCmd = &cobra.Command{
 
 			go d.Start(r.Addr, &wg, dc)
 		}
-		wg.Add(1)
-		go r.Serve(drones, &wg)
 
 		for _, c := range dataChannels {
-			c <- "test"
+
+			c <- "testing"
+
 		}
 
 		wg.Wait()

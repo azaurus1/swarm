@@ -1,17 +1,17 @@
 package radio
 
 import (
-	"log"
-	"strconv"
+	"encoding/json"
 	"sync"
 
 	"github.com/azaurus1/swarm/internal/drone"
+	"github.com/azaurus1/swarm/internal/routing"
 )
 
 // This is simulating the "air" for the drones
 
 type Radio struct {
-	Drones map[int]drone.Drone
+	Drones map[string]drone.Drone
 }
 
 func (r *Radio) Serve(wg *sync.WaitGroup, radioChan chan []byte) {
@@ -20,23 +20,24 @@ func (r *Radio) Serve(wg *sync.WaitGroup, radioChan chan []byte) {
 	// in - radioChan
 	// out - drones[i].DataChan
 	go func() {
+		wg.Add(1)
 		for msg := range radioChan {
-			log.Printf("radio > message received: %s", msg)
 
-			droneID, err := strconv.Atoi(string(msg))
-			if err != nil || droneID <= 0 || droneID > len(r.Drones) {
-				log.Printf("radio > invalid drone ID: %s", msg)
-				continue
-			}
+			req := routing.AODVMessage{}
+
+			// unmarshall
+			json.Unmarshal(msg, &req)
 
 			for _, d := range r.Drones {
-				if droneID == d.Id {
+				if req.Source == d.Id {
 					// ignore same id, obviously they are within their own range
 					continue
 				}
-				inRange := r.calculateTransmission(droneID, d.Id)
+				inRange := r.calculateTransmission(req.Source, d.Id)
 				if inRange {
-					log.Printf("drone %d is within range of drone %d", d.Id, droneID)
+					// log.Printf("drone %s is within range of drone %s", d.Id, req.Source)
+					// forward the message
+					d.DataChan <- msg
 				}
 
 			}
@@ -46,7 +47,7 @@ func (r *Radio) Serve(wg *sync.WaitGroup, radioChan chan []byte) {
 
 }
 
-func (r *Radio) calculateTransmission(sourceDroneID int, targetDroneID int) bool {
+func (r *Radio) calculateTransmission(sourceDroneID string, targetDroneID string) bool {
 	// (cX - x)^2 + (cY - y)^2 = transmissionRange^2
 
 	// point is in range if

@@ -21,13 +21,13 @@ var runCmd = &cobra.Command{
 		var radioChan chan []byte
 
 		drones := []drone.Drone{
-			{Id: 1, X: 1, Y: 1, VX: 0.5, VY: 0.2, TransmissionRange: 1, DataChan: make(chan []byte, 10)},
-			{Id: 2, X: 3, Y: 1, VX: -0.1, VY: 0.3, TransmissionRange: 3, DataChan: make(chan []byte, 10)},
-			{Id: 3, X: 8, Y: 1, VX: -0.1, VY: 0.3, TransmissionRange: 6, DataChan: make(chan []byte, 10)},
+			{Id: "1", X: 1, Y: 1, VX: 0.5, VY: 0.2, TransmissionRange: 1, DataChan: make(chan []byte, 1024)},
+			{Id: "2", X: 3, Y: 1, VX: -0.1, VY: 0.3, TransmissionRange: 3, DataChan: make(chan []byte, 1024)},
+			{Id: "3", X: 8, Y: 1, VX: -0.1, VY: 0.3, TransmissionRange: 6, DataChan: make(chan []byte, 1024)},
 		}
 		r := radio.Radio{}
 
-		droneMap := make(map[int]drone.Drone)
+		droneMap := make(map[string]drone.Drone)
 
 		for _, drone := range drones {
 			droneMap[drone.Id] = drone
@@ -36,7 +36,7 @@ var runCmd = &cobra.Command{
 		r.Drones = droneMap
 
 		wg.Add(1)
-		radioChan = make(chan []byte)
+		radioChan = make(chan []byte, 1024)
 		go r.Serve(&wg, radioChan)
 
 		for _, d := range drones {

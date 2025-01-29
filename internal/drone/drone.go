@@ -1,50 +1,81 @@
 package drone
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
-	"strconv"
 	"sync"
 
 	"github.com/azaurus1/swarm/internal/routing"
 )
 
 type Drone struct {
-	Id                int
+	Id                string
 	X                 float64
 	Y                 float64
 	VX                float64
 	VY                float64
 	TransmissionRange float64
-	RoutingTable      routing.RoutingTable
+	AODVListener      routing.AODVListener
 	DataChan          chan []byte
 }
 
 func (d *Drone) Start(wg *sync.WaitGroup, radioChan chan []byte) {
 	defer wg.Done()
-	// channels
+	// map
+	routingTableEntries := make(map[string]routing.RoutingTableEntry)
+
+	d.AODVListener.RoutingTable.Entries = routingTableEntries
 
 	// data in - dataChan (this is data from radio/air)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		for msg := range d.DataChan {
-			log.Printf("drone %d > message received: %s", d.Id, msg)
+			log.Printf("drone %s > message received: %s", d.Id, msg)
+
+			// unmarshall
+			var aMsg routing.AODVMessage
+			json.Unmarshal(msg, &aMsg)
+
+			if aMsg.Type == "HELLO" {
+				// handle the hello
+				d.AODVListener.HandleHello(aMsg)
+
+				// send local
+			}
+
 		}
+	}()
+
+	// send a HELLO for neighbour discovery
+	go func() {
+		defer wg.Done()
+		req := routing.AODVMessage{
+			Type:   "HELLO",
+			Source: d.Id,
+		}
+
+		data, err := json.Marshal(req)
+		if err != nil {
+			log.Println("couldn't marshall hello message")
+		}
+
+		radioChan <- data
+
 	}()
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		// data out - radioChan
-		id := strconv.Itoa(d.Id)
-		radioChan <- []byte(id)
+		radioChan <- []byte(d.Id)
 	}()
 
 }
 
 func (d *Drone) ToString() string {
-	s := fmt.Sprintf("%d,%f,%f,%f", d.Id, d.X, d.Y, d.TransmissionRange)
+	s := fmt.Sprintf("%s,%f,%f,%f", d.Id, d.X, d.Y, d.TransmissionRange)
 
 	return s
 }

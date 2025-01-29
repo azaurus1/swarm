@@ -7,9 +7,10 @@ type AODVListener struct {
 }
 
 type AODVMessage struct {
-	Type           string `json:"type"`
-	Source         string `json:"source"`
-	SequenceNumber int    `json:"sequence_number"`
+	Type           string  `json:"type"`
+	Source         string  `json:"source"`
+	SequenceNumber int     `json:"sequence_number"`
+	LinkQuality    float64 `json:"link_quality"`
 }
 
 type RoutingTable struct {

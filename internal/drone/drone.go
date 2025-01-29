@@ -45,6 +45,8 @@ func (d *Drone) Start(wg *sync.WaitGroup, radioChan chan []byte) {
 				// send local
 			}
 
+			log.Println(d.AODVListener.RoutingTable)
+
 		}
 	}()
 

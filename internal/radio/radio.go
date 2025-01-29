@@ -2,6 +2,8 @@ package radio
 
 import (
 	"encoding/json"
+	"log"
+	"math"
 	"sync"
 
 	"github.com/azaurus1/swarm/internal/drone"
@@ -19,8 +21,8 @@ func (r *Radio) Serve(wg *sync.WaitGroup, radioChan chan []byte) {
 
 	// in - radioChan
 	// out - drones[i].DataChan
+	wg.Add(1)
 	go func() {
-		wg.Add(1)
 		for msg := range radioChan {
 
 			req := routing.AODVMessage{}
@@ -36,8 +38,19 @@ func (r *Radio) Serve(wg *sync.WaitGroup, radioChan chan []byte) {
 				inRange := r.calculateTransmission(req.Source, d.Id)
 				if inRange {
 					// log.Printf("drone %s is within range of drone %s", d.Id, req.Source)
+
+					q := r.calculateLinkQuality(req.Source, d.Id)
+
+					req.LinkQuality = q
+
+					// marshall to json
+					calcMsg, err := json.Marshal(req)
+					if err != nil {
+						log.Println("error marshalling calculated message: ", err)
+					}
+
 					// forward the message
-					d.DataChan <- msg
+					d.DataChan <- calcMsg
 				}
 
 			}
@@ -68,5 +81,21 @@ func (r *Radio) calculateTransmission(sourceDroneID string, targetDroneID string
 	}
 
 	return true
+
+}
+
+func (r *Radio) calculateLinkQuality(sourceDroneID string, targetDroneID string) float64 {
+	dx := r.Drones[targetDroneID].X - r.Drones[sourceDroneID].X
+	dy := r.Drones[targetDroneID].Y - r.Drones[sourceDroneID].Y
+
+	d := math.Sqrt(math.Pow(dx, 2) + math.Pow(dy, 2))
+
+	q := 1 - (d / r.Drones[sourceDroneID].TransmissionRange)
+
+	if q < 0 {
+		q = 0
+	}
+
+	return q
 
 }

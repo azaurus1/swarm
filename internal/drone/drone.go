@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"time"
 
 	"github.com/azaurus1/swarm/internal/routing"
 )
@@ -22,10 +23,13 @@ type Drone struct {
 
 func (d *Drone) Start(wg *sync.WaitGroup, radioChan chan []byte) {
 	defer wg.Done()
-	// map
+	// map routing table
 	routingTableEntries := make(map[string]routing.RoutingTableEntry)
-
 	d.AODVListener.RoutingTable.Entries = routingTableEntries
+
+	// hello ticker
+	ticker := time.NewTicker(1000 * time.Millisecond)
+	done := make(chan bool)
 
 	// data in - dataChan (this is data from radio/air)
 	wg.Add(1)
@@ -51,8 +55,10 @@ func (d *Drone) Start(wg *sync.WaitGroup, radioChan chan []byte) {
 	}()
 
 	// send a HELLO for neighbour discovery
+	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		defer ticker.Stop()
 		req := routing.AODVMessage{
 			Type:   "HELLO",
 			Source: d.Id,
@@ -63,7 +69,14 @@ func (d *Drone) Start(wg *sync.WaitGroup, radioChan chan []byte) {
 			log.Println("couldn't marshall hello message")
 		}
 
-		radioChan <- data
+		for {
+			select {
+			case <-done:
+				return
+			case _ = <-ticker.C:
+				radioChan <- data
+			}
+		}
 
 	}()
 

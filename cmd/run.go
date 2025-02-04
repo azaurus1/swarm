@@ -24,9 +24,9 @@ var runCmd = &cobra.Command{
 		var lBound, rBound, tBound, bBound float64
 
 		lBound = 0
-		rBound = 50
+		rBound = 55
 		bBound = 0
-		tBound = 50
+		tBound = 55
 
 		drones := []drone.Drone{
 			{Id: "1", X: 1, Y: 1, VX: 1, VY: 1, TransmissionRange: 1, DataChan: make(chan []byte, 1024)},

@@ -13,7 +13,7 @@ import (
 // This is simulating the "air" for the drones
 
 type Radio struct {
-	Drones map[string]drone.Drone
+	Drones map[string]*drone.Drone
 }
 
 func (r *Radio) Serve(wg *sync.WaitGroup, radioChan chan []byte) {
@@ -35,12 +35,17 @@ func (r *Radio) Serve(wg *sync.WaitGroup, radioChan chan []byte) {
 					// ignore same id, obviously they are within their own range
 					continue
 				}
+
+				if _, exists := r.Drones[req.Source]; !exists {
+					log.Printf("Source drone %s does not exist in r.Drones", req.Source)
+					continue
+				}
+
 				inRange := r.calculateTransmission(req.Source, d.Id)
 				if inRange {
 					// log.Printf("drone %s is within range of drone %s", d.Id, req.Source)
 
 					q := r.calculateLinkQuality(req.Source, d.Id)
-
 					req.LinkQuality = q
 
 					// marshall to json
@@ -61,6 +66,7 @@ func (r *Radio) Serve(wg *sync.WaitGroup, radioChan chan []byte) {
 }
 
 func (r *Radio) calculateTransmission(sourceDroneID string, targetDroneID string) bool {
+
 	// (cX - x)^2 + (cY - y)^2 = transmissionRange^2
 
 	// point is in range if

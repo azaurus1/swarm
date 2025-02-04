@@ -27,9 +27,21 @@ func (d *Drone) Start(wg *sync.WaitGroup, radioChan chan []byte) {
 	routingTableEntries := make(map[string]routing.RoutingTableEntry)
 	d.AODVListener.RoutingTable.Entries = routingTableEntries
 
+	// make mutex for table
+	mu := sync.Mutex{}
+	d.AODVListener.RoutingTable.Mutex = &mu
+
 	// hello ticker
-	ticker := time.NewTicker(1000 * time.Millisecond)
+	helloTicker := time.NewTicker(1000 * time.Millisecond)
+	// expiry ticke
+	expirationTicker := time.NewTicker(1000 * time.Millisecond)
+
 	done := make(chan bool)
+
+	if d.Id == "" {
+		log.Println("Drone ID is empty at start!")
+		return
+	}
 
 	// data in - dataChan (this is data from radio/air)
 	wg.Add(1)
@@ -49,7 +61,7 @@ func (d *Drone) Start(wg *sync.WaitGroup, radioChan chan []byte) {
 				// send local
 			}
 
-			log.Println(d.AODVListener.RoutingTable)
+			// log.Println(d.AODVListener.RoutingTable)
 
 		}
 	}()
@@ -58,7 +70,7 @@ func (d *Drone) Start(wg *sync.WaitGroup, radioChan chan []byte) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		defer ticker.Stop()
+		defer helloTicker.Stop()
 		req := routing.AODVMessage{
 			Type:   "HELLO",
 			Source: d.Id,
@@ -73,7 +85,7 @@ func (d *Drone) Start(wg *sync.WaitGroup, radioChan chan []byte) {
 			select {
 			case <-done:
 				return
-			case _ = <-ticker.C:
+			case <-helloTicker.C:
 				radioChan <- data
 			}
 		}
@@ -82,9 +94,20 @@ func (d *Drone) Start(wg *sync.WaitGroup, radioChan chan []byte) {
 
 	wg.Add(1)
 	go func() {
+		// handling expired neighbours
 		defer wg.Done()
-		// data out - radioChan
-		radioChan <- []byte(d.Id)
+		defer expirationTicker.Stop()
+
+		for {
+			select {
+			case <-done:
+				return
+			case <-expirationTicker.C:
+				d.AODVListener.CheckExpiredNeighbours()
+			}
+
+		}
+
 	}()
 
 }
@@ -93,4 +116,18 @@ func (d *Drone) ToString() string {
 	s := fmt.Sprintf("%s,%f,%f,%f", d.Id, d.X, d.Y, d.TransmissionRange)
 
 	return s
+}
+
+func (d *Drone) UpdateLocation(delta time.Duration, lBound, rBound, tBound, bBound float64) {
+	d.X += delta.Seconds() * d.VX
+	d.Y += delta.Seconds() * d.VY
+
+	if d.X <= lBound || d.X >= rBound {
+		d.VX *= -1
+	}
+
+	if d.Y <= bBound || d.Y >= tBound {
+		d.VY *= -1
+	}
+	// log.Printf("New position for %s: (%f,%f)", d.Id, d.X, d.Y)
 }

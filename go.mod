@@ -3,7 +3,6 @@ module github.com/azaurus1/swarm
 go 1.23.4
 
 require (
-	github.com/gopxl/pixel v1.0.0
 	github.com/gopxl/pixel/v2 v2.3.0
 	github.com/spf13/cobra v1.8.1
 	golang.org/x/image v0.20.0

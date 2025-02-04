@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"sync"
+	"time"
 
 	"github.com/azaurus1/swarm/internal/drone"
 	"github.com/azaurus1/swarm/internal/radio"
@@ -19,29 +20,35 @@ var runCmd = &cobra.Command{
 		var wg sync.WaitGroup
 		var dataChannels []chan []byte
 		var radioChan chan []byte
+		var simDuration time.Duration
+		var lBound, rBound, tBound, bBound float64
+
+		lBound = 0
+		rBound = 50
+		bBound = 0
+		tBound = 50
 
 		drones := []drone.Drone{
-			{Id: "1", X: 1, Y: 1, VX: 0.5, VY: 0.2, TransmissionRange: 1, DataChan: make(chan []byte, 1024)},
+			{Id: "1", X: 1, Y: 1, VX: 1, VY: 1, TransmissionRange: 1, DataChan: make(chan []byte, 1024)},
 			{Id: "2", X: 3, Y: 1, VX: -0.1, VY: 0.3, TransmissionRange: 3, DataChan: make(chan []byte, 1024)},
 			{Id: "3", X: 8, Y: 1, VX: -0.1, VY: 0.3, TransmissionRange: 6, DataChan: make(chan []byte, 1024)},
-			{Id: "4", X: 4, Y: 5, VX: -0.1, VY: 0.3, TransmissionRange: 4, DataChan: make(chan []byte, 1024)},
+			{Id: "4", X: 4, Y: 5, VX: 0.1, VY: 0.6, TransmissionRange: 4, DataChan: make(chan []byte, 1024)},
 			{Id: "5", X: 8, Y: 8, VX: -0.1, VY: 0.3, TransmissionRange: 4, DataChan: make(chan []byte, 1024)},
 			{Id: "6", X: 1, Y: 6, VX: -0.1, VY: 0.3, TransmissionRange: 4, DataChan: make(chan []byte, 1024)},
 			{Id: "7", X: 1, Y: 8, VX: -0.1, VY: 0.3, TransmissionRange: 4, DataChan: make(chan []byte, 1024)},
 		}
 		r := radio.Radio{}
 
-		droneMap := make(map[string]drone.Drone)
+		droneMap := make(map[string]*drone.Drone)
 
-		for _, drone := range drones {
-			droneMap[drone.Id] = drone
+		for i := range drones {
+			droneMap[drones[i].Id] = &drones[i]
 		}
 
 		r.Drones = droneMap
 
 		wg.Add(1)
 		radioChan = make(chan []byte, 1024)
-		go r.Serve(&wg, radioChan)
 
 		for _, d := range drones {
 			wg.Add(1)
@@ -49,6 +56,29 @@ var runCmd = &cobra.Command{
 
 			go d.Start(&wg, radioChan)
 		}
+
+		go r.Serve(&wg, radioChan)
+
+		// simulate time passing
+		simDuration = 100 * time.Millisecond
+		simTicker := time.NewTicker(simDuration)
+		done := make(chan bool)
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-done:
+					return
+				case <-simTicker.C:
+					// loop drones, update locations
+					for _, drone := range r.Drones {
+						drone.UpdateLocation(simDuration, lBound, rBound, tBound, bBound)
+					}
+				}
+			}
+		}()
 
 		// for _, c := range dataChannels {
 		// 	c <- "testing"

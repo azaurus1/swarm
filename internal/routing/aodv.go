@@ -1,21 +1,29 @@
 package routing
 
 import (
-	"errors"
+	"fmt"
 	"log"
 	"sync"
 	"time"
 )
 
 type AODVListener struct {
-	RoutingTable RoutingTable
+	RoutingTable  RoutingTable
+	ReceivedRREQs map[string]time.Time
+	ReceivedRREPs map[string]time.Time
 }
 
 type AODVMessage struct {
-	Type           string  `json:"type"`
-	Source         string  `json:"source"`
-	SequenceNumber int     `json:"sequence_number"`
-	LinkQuality    float64 `json:"link_quality"`
+	Source                 string        `json:"source"`
+	Type                   int           `json:"type"`
+	HopCount               int           `json:"hop_count"`
+	RREQID                 string        `json:"rreq_id"`
+	DestinationId          string        `json:"destination_id"`
+	DestinationSequenceNum int           `json:"destination_sequence_num"`
+	OriginatorId           string        `json:"originator_id"`
+	OriginatorSequenceNum  int           `json:"originator_sequence_num"`
+	LifeTime               time.Duration `json:"lifetime"`
+	UnknownSequenceNum     bool          `json:"unknown_sequence_num"`
 }
 
 type RoutingTable struct {
@@ -26,8 +34,16 @@ type RoutingTable struct {
 type RoutingTableEntry struct {
 	ID             string
 	SequenceNumber int
-	TTL            int
+	NextHop        string
+	HopCount       int
 	Expiration     time.Time
+}
+
+func (r RoutingTableEntry) ToString() string {
+	return fmt.Sprintf(
+		"RoutingTableEntry{\n  ID: %s,\n  SequenceNumber: %d,\n  NextHop: %s,\n  HopCount: %d,\n Expiration: %s\n}",
+		r.ID, r.SequenceNumber, r.NextHop, r.HopCount, r.Expiration.Format(time.RFC3339),
+	)
 }
 
 // check for routing table entries that are past expiration, delete them if they are
@@ -41,38 +57,5 @@ func (a *AODVListener) CheckExpiredNeighbours() error {
 		}
 	}
 
-	return nil
-}
-
-// handle the HELLO messages
-func (a *AODVListener) HandleHello(msg AODVMessage) error {
-	// We have received a HELLO, add this Source to our neighbours and reset the link timer
-	n := RoutingTableEntry{
-		ID:             msg.Source,
-		SequenceNumber: msg.SequenceNumber,
-		TTL:            2,
-		Expiration:     time.Now().Add(2 * time.Second),
-	}
-
-	a.RoutingTable.Mutex.Lock()
-	if n.SequenceNumber < a.RoutingTable.Entries[n.ID].SequenceNumber {
-		// we cant update
-		return errors.New("sequence number is lower than current")
-	}
-
-	// lock the table
-	a.RoutingTable.Entries[n.ID] = n
-	a.RoutingTable.Mutex.Unlock()
-
-	return nil
-}
-
-// handle the RREQ
-func (a *AODVListener) HandleRouteRequest(msg AODVMessage) error {
-	return nil
-}
-
-// handle the RREP
-func (a *AODVListener) HandleRouteReply(msg AODVMessage) error {
 	return nil
 }

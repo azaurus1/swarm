@@ -36,6 +36,8 @@ func (r *Radio) Serve(wg *sync.WaitGroup, radioChan chan []byte) {
 					continue
 				}
 
+				log.Println(req)
+
 				if _, exists := r.Drones[req.Source]; !exists {
 					log.Printf("Source drone %s does not exist in r.Drones", req.Source)
 					continue
@@ -44,10 +46,6 @@ func (r *Radio) Serve(wg *sync.WaitGroup, radioChan chan []byte) {
 				inRange := r.calculateTransmission(req.Source, d.Id)
 				if inRange {
 					// log.Printf("drone %s is within range of drone %s", d.Id, req.Source)
-
-					q := r.calculateLinkQuality(req.Source, d.Id)
-					req.LinkQuality = q
-
 					// marshall to json
 					calcMsg, err := json.Marshal(req)
 					if err != nil {

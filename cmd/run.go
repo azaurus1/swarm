@@ -29,13 +29,9 @@ var runCmd = &cobra.Command{
 		tBound = 55
 
 		drones := []drone.Drone{
-			{Id: "1", X: 1, Y: 1, VX: 1, VY: 1, TransmissionRange: 1, DataChan: make(chan []byte, 1024)},
-			{Id: "2", X: 3, Y: 1, VX: -0.1, VY: 0.3, TransmissionRange: 3, DataChan: make(chan []byte, 1024)},
-			{Id: "3", X: 8, Y: 1, VX: -0.1, VY: 0.3, TransmissionRange: 6, DataChan: make(chan []byte, 1024)},
-			{Id: "4", X: 4, Y: 5, VX: 0.1, VY: 0.6, TransmissionRange: 4, DataChan: make(chan []byte, 1024)},
-			{Id: "5", X: 8, Y: 8, VX: -0.1, VY: 0.3, TransmissionRange: 4, DataChan: make(chan []byte, 1024)},
-			{Id: "6", X: 1, Y: 6, VX: -0.1, VY: 0.3, TransmissionRange: 4, DataChan: make(chan []byte, 1024)},
-			{Id: "7", X: 1, Y: 8, VX: -0.1, VY: 0.3, TransmissionRange: 4, DataChan: make(chan []byte, 1024)},
+			{Id: "1", X: 1, Y: 1, VX: 0, VY: 0, TransmissionRange: 1, DataChan: make(chan []byte, 1024)},
+			{Id: "2", X: 2, Y: 1, VX: 0, VY: 0, TransmissionRange: 1, DataChan: make(chan []byte, 1024)},
+			{Id: "3", X: 3, Y: 1, VX: 0, VY: 0, TransmissionRange: 1, DataChan: make(chan []byte, 1024)},
 		}
 		r := radio.Radio{}
 

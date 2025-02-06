@@ -16,7 +16,7 @@ type AODVListener struct {
 
 type AODVMessage struct {
 	Source                 string        `json:"source"`
-	Type                   int           `json:"type"`
+	Type                   int           `json:"aodv_type"`
 	HopCount               int           `json:"hop_count"`
 	RREQID                 string        `json:"rreq_id"`
 	DestinationId          string        `json:"destination_id"`

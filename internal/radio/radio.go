@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	"github.com/azaurus1/swarm/internal/drone"
-	"github.com/azaurus1/swarm/internal/routing"
 )
 
 // This is simulating the "air" for the drones
@@ -25,7 +24,7 @@ func (r *Radio) Serve(wg *sync.WaitGroup, radioChan chan []byte) {
 	go func() {
 		for msg := range radioChan {
 
-			req := routing.AODVMessage{}
+			req := drone.DroneMessage{}
 
 			// unmarshall
 			json.Unmarshal(msg, &req)
@@ -35,8 +34,6 @@ func (r *Radio) Serve(wg *sync.WaitGroup, radioChan chan []byte) {
 					// ignore same id, obviously they are within their own range
 					continue
 				}
-
-				log.Println(req)
 
 				if _, exists := r.Drones[req.Source]; !exists {
 					log.Printf("Source drone %s does not exist in r.Drones", req.Source)

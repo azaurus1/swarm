@@ -2,6 +2,7 @@ package renderer
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/azaurus1/swarm/internal/drone"
 	"github.com/gopxl/pixel/v2"
@@ -12,10 +13,12 @@ import (
 	"golang.org/x/image/font/basicfont"
 )
 
-func Run(drones []drone.Drone) {
+func Run(wg *sync.WaitGroup, drones map[string]*drone.Drone, lBound, rBound, bBound, tBound float64) {
+	defer wg.Done()
+
 	cfg := opengl.WindowConfig{
 		Title:  "Swarm Simulation",
-		Bounds: pixel.R(0, 0, 1024, 768),
+		Bounds: pixel.R(lBound, bBound, rBound, tBound),
 	}
 	win, err := opengl.NewWindow(cfg)
 	if err != nil {

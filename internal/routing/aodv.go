@@ -1,6 +1,7 @@
 package routing
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"sync"
@@ -58,4 +59,16 @@ func (a *AODVListener) CheckExpiredNeighbours() error {
 	}
 
 	return nil
+}
+
+func (a *AODVListener) GetNextHop(destination string) (string, error) {
+	var nextHop string
+
+	if route, exists := a.RoutingTable.Entries[destination]; exists {
+		nextHop = route.NextHop
+	} else {
+		return "", errors.New("route not found")
+	}
+
+	return nextHop, nil
 }

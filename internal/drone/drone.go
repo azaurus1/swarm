@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/azaurus1/swarm/internal/control"
 	"github.com/azaurus1/swarm/internal/messaging"
 	"github.com/azaurus1/swarm/internal/routing"
 	"github.com/azaurus1/swarm/internal/types"
@@ -19,11 +20,12 @@ type Drone struct {
 	VX                float64
 	VY                float64
 	TransmissionRange float64
-	AODVListener      *routing.AODVListener
+	SequenceNumber    int
 	DataChan          chan []byte
 	PathDiscoveryTime time.Duration
 	TransportLayer    *messaging.TransportLayer
-	SequenceNumber    int
+	AODVListener      *routing.AODVListener
+	ContolLayer       *control.ControlLayer
 }
 
 func (d *Drone) Start(wg *sync.WaitGroup, radioChan chan []byte) {
@@ -34,6 +36,7 @@ func (d *Drone) Start(wg *sync.WaitGroup, radioChan chan []byte) {
 
 	d.AODVListener = routing.NewAODVListener()
 	d.TransportLayer = messaging.NewTransportLayer()
+	d.ContolLayer = control.NewControlLayer()
 	// hello ticker
 	helloTicker := time.NewTicker(1000 * time.Millisecond)
 	// expiry ticke
@@ -73,6 +76,8 @@ func (d *Drone) Start(wg *sync.WaitGroup, radioChan chan []byte) {
 				d.AODVListener.HandleAODVMessage(d.Id, d.PathDiscoveryTime, aMsg, radioChan)
 			case "DATA":
 				d.TransportLayer.HandleDataMessage(d.Id, d.SequenceNumber, droneMsg, radioChan, d.AODVListener)
+			case "CONTROL":
+				d.ContolLayer.HandleCommand(d.Id, d.SequenceNumber, droneMsg, radioChan, d.AODVListener)
 			}
 		}
 	}()
@@ -180,6 +185,42 @@ func (d *Drone) Start(wg *sync.WaitGroup, radioChan chan []byte) {
 					RecipientID: "5",
 					SenderID:    "1",
 					Data:        []byte("Hello"),
+				},
+			}
+
+			data, err := json.Marshal(reqDMsg)
+			if err != nil {
+				log.Println("error marshalling drone message: ", err)
+			}
+
+			radioChan <- data
+			d.SequenceNumber++
+
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		// handling expired neighbours
+		defer wg.Done()
+		// sending a DATA
+
+		time.Sleep(3 * time.Second)
+
+		if d.Id == "1" {
+
+			reqDMsg := types.DroneMessage{
+				Source: "1",
+				Type:   "CONTROL",
+				ControlPayload: types.ControlMessage{
+					Checksum:    "1738",
+					RecipientID: "5",
+					SenderID:    "1",
+					Command:     "move",
+					Params: map[string]string{
+						"x": "2",
+						"y": "1",
+					},
 				},
 			}
 

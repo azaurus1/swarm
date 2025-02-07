@@ -5,10 +5,11 @@ import (
 )
 
 type DroneMessage struct {
-	Source      string      `json:"source"`
-	Type        string      `json:"type"`
-	AODVPayload AODVMessage `json:"aodv_payload"`
-	DataPayload DataMessage `json:"data_payload"`
+	Source         string         `json:"source"`
+	Type           string         `json:"type"`
+	AODVPayload    AODVMessage    `json:"aodv_payload"`
+	DataPayload    DataMessage    `json:"data_payload"`
+	ControlPayload ControlMessage `json:"control_payload"`
 }
 
 type DataMessage struct {
@@ -30,4 +31,12 @@ type AODVMessage struct {
 	LifeTime               time.Duration `json:"lifetime"`
 	UnknownSequenceNum     bool          `json:"unknown_sequence_num"`
 	TTL                    int           `json:"ttl"`
+}
+
+type ControlMessage struct {
+	Checksum    string            `json:"checksum"`
+	RecipientID string            `json:"recipient_id"`
+	SenderID    string            `json:"sender_id"`
+	Command     string            `json:"command"`
+	Params      map[string]string `json:"params"`
 }

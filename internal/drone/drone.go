@@ -22,6 +22,7 @@ type Drone struct {
 	DataChan          chan []byte
 	PathDiscoveryTime time.Duration
 	TransportLayer    messaging.TransportLayer
+	SequenceNumber    int
 }
 
 type DroneMessage struct {
@@ -54,7 +55,7 @@ func (d *Drone) Start(wg *sync.WaitGroup, radioChan chan []byte) {
 	d.AODVListener.RoutingTable.Mutex = &mu
 
 	// hello ticker
-	// helloTicker := time.NewTicker(1000 * time.Millisecond)
+	helloTicker := time.NewTicker(1000 * time.Millisecond)
 	// expiry ticke
 	expirationTicker := time.NewTicker(1000 * time.Millisecond)
 
@@ -70,7 +71,7 @@ func (d *Drone) Start(wg *sync.WaitGroup, radioChan chan []byte) {
 	go func() {
 		defer wg.Done()
 		for msg := range d.DataChan {
-			log.Printf("drone %s > message received: %s", d.Id, msg)
+			// log.Printf("drone %s > message received: %s", d.Id, msg)
 
 			// unmarshall
 			var droneMsg DroneMessage
@@ -84,6 +85,16 @@ func (d *Drone) Start(wg *sync.WaitGroup, radioChan chan []byte) {
 			switch droneMsg.Type {
 			case "AODV":
 				aMsg := droneMsg.AODVPayload
+
+				if aMsg.TTL < aMsg.HopCount+1 {
+					log.Println("TTL expired, discarding message")
+				}
+
+				log.Printf("Drone %s routing table: ", d.Id)
+
+				for _, e := range d.AODVListener.RoutingTable.Entries {
+					log.Println(e.ToString())
+				}
 
 				switch aMsg.Type {
 				case 1:
@@ -122,17 +133,11 @@ func (d *Drone) Start(wg *sync.WaitGroup, radioChan chan []byte) {
 							Expiration:     time.Now().Add(30 * time.Second),
 						}
 
-						log.Printf("Drone %s routing table: ", d.Id)
-
-						for _, e := range d.AODVListener.RoutingTable.Entries {
-							log.Println(e.ToString())
-						}
-
 					}
 
 					if timestamp, exists := d.AODVListener.ReceivedRREQs[rreqKey]; exists {
 						if time.Since(timestamp) < d.PathDiscoveryTime {
-							log.Println("Silently discarding this RREQ")
+							// log.Println("Silently discarding this RREQ")
 							continue
 						}
 					}
@@ -226,7 +231,7 @@ func (d *Drone) Start(wg *sync.WaitGroup, radioChan chan []byte) {
 
 					// Instead of looking up aMsg.Source, look up the route for the destination:
 					if entry, exists := d.AODVListener.RoutingTable.Entries[aMsg.DestinationId]; exists {
-						if entry.SequenceNumber <= aMsg.DestinationSequenceNum {
+						if entry.SequenceNumber <= aMsg.DestinationSequenceNum && aMsg.HopCount < d.AODVListener.RoutingTable.Entries[aMsg.DestinationId].HopCount {
 							// Valid update: update the route for the destination
 							log.Println("Valid, Updating")
 							d.AODVListener.RoutingTable.Entries[aMsg.DestinationId] = routing.RoutingTableEntry{
@@ -252,7 +257,7 @@ func (d *Drone) Start(wg *sync.WaitGroup, radioChan chan []byte) {
 
 					if timestamp, exists := d.AODVListener.ReceivedRREPs[rrepKey]; exists {
 						if time.Since(timestamp) < d.PathDiscoveryTime {
-							log.Println("Silently discarding this RREP")
+							// log.Println("Silently discarding this RREP")
 							continue
 						}
 					}
@@ -273,10 +278,6 @@ func (d *Drone) Start(wg *sync.WaitGroup, radioChan chan []byte) {
 							Expiration:     time.Now().Add(30 * time.Second),
 						}
 
-						log.Printf("Drone %s routing table: ", d.Id)
-						for _, e := range d.AODVListener.RoutingTable.Entries {
-							log.Println(e.ToString())
-						}
 						continue
 					} else {
 						// Repeat: forward the RREP with an incremented hop count
@@ -301,10 +302,6 @@ func (d *Drone) Start(wg *sync.WaitGroup, radioChan chan []byte) {
 						radioChan <- data
 					}
 
-					log.Printf("Drone %s routing table: ", d.Id)
-					for _, e := range d.AODVListener.RoutingTable.Entries {
-						log.Println(e.ToString())
-					}
 				}
 			case "DATA":
 				log.Println("DATA Message received")
@@ -315,6 +312,42 @@ func (d *Drone) Start(wg *sync.WaitGroup, radioChan chan []byte) {
 
 	// send a HELLO for neighbour discovery
 	// hellos should actually be RREP with TTL of 1
+	wg.Add(1)
+	go func() {
+		// handling expired neighbours
+		defer wg.Done()
+		defer helloTicker.Stop()
+
+		for {
+			select {
+			case <-done:
+				return
+			case <-helloTicker.C:
+				helloMsg := routing.AODVMessage{
+					Source:                 d.Id,
+					Type:                   2,
+					HopCount:               1,
+					DestinationId:          d.Id,
+					DestinationSequenceNum: 1,
+					OriginatorId:           d.Id,
+					OriginatorSequenceNum:  1,
+					TTL:                    1,
+				}
+
+				helloDMsg := DroneMessage{
+					Source:      helloMsg.Source,
+					Type:        "AODV",
+					AODVPayload: helloMsg,
+				}
+
+				data, _ := json.Marshal(helloDMsg)
+
+				radioChan <- data
+			}
+
+		}
+
+	}()
 
 	// Expiration ticker
 	wg.Add(1)
@@ -347,7 +380,7 @@ func (d *Drone) Start(wg *sync.WaitGroup, radioChan chan []byte) {
 				RREQID:                "1738",
 				DestinationId:         "5",
 				OriginatorId:          "1",
-				OriginatorSequenceNum: 1,
+				OriginatorSequenceNum: d.SequenceNumber,
 				UnknownSequenceNum:    true,
 			},
 		}
@@ -358,6 +391,7 @@ func (d *Drone) Start(wg *sync.WaitGroup, radioChan chan []byte) {
 		}
 
 		radioChan <- data
+		d.SequenceNumber++
 
 	}
 

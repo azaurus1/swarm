@@ -25,6 +25,7 @@ type AODVMessage struct {
 	OriginatorSequenceNum  int           `json:"originator_sequence_num"`
 	LifeTime               time.Duration `json:"lifetime"`
 	UnknownSequenceNum     bool          `json:"unknown_sequence_num"`
+	TTL                    int           `json:"ttl"`
 }
 
 type RoutingTable struct {

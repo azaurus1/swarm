@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/azaurus1/swarm/internal/drone"
+	"github.com/azaurus1/swarm/internal/types"
 )
 
 // This is simulating the "air" for the drones
@@ -24,7 +25,7 @@ func (r *Radio) Serve(wg *sync.WaitGroup, radioChan chan []byte) {
 	go func() {
 		for msg := range radioChan {
 
-			req := drone.DroneMessage{}
+			req := types.DroneMessage{}
 
 			// unmarshall
 			json.Unmarshal(msg, &req)

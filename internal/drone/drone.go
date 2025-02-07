@@ -18,10 +18,10 @@ type Drone struct {
 	VX                float64
 	VY                float64
 	TransmissionRange float64
-	AODVListener      routing.AODVListener
+	AODVListener      *routing.AODVListener
 	DataChan          chan []byte
 	PathDiscoveryTime time.Duration
-	TransportLayer    messaging.TransportLayer
+	TransportLayer    *messaging.TransportLayer
 	SequenceNumber    int
 }
 
@@ -38,21 +38,18 @@ func (d *Drone) Start(wg *sync.WaitGroup, radioChan chan []byte) {
 	//
 	d.PathDiscoveryTime = 30 * time.Second
 
-	// map routing table
-	routingTableEntries := make(map[string]routing.RoutingTableEntry)
-	d.AODVListener.RoutingTable.Entries = routingTableEntries
+	d.AODVListener = &routing.AODVListener{
+		RoutingTable: routing.RoutingTable{
+			Entries: make(map[string]routing.RoutingTableEntry),
+			Mutex:   &sync.Mutex{},
+		},
+		ReceivedRREQs: make(map[string]time.Time),
+		ReceivedRREPs: make(map[string]time.Time),
+	}
 
-	// create map for rreqs
-	recRREQ := make(map[string]time.Time)
-	d.AODVListener.ReceivedRREQs = recRREQ
-
-	// create map for rreps
-	recRREP := make(map[string]time.Time)
-	d.AODVListener.ReceivedRREPs = recRREP
-
-	// make mutex for table
-	mu := sync.Mutex{}
-	d.AODVListener.RoutingTable.Mutex = &mu
+	d.TransportLayer = &messaging.TransportLayer{
+		ReceivedMessages: make(map[string]time.Time),
+	}
 
 	// hello ticker
 	helloTicker := time.NewTicker(1000 * time.Millisecond)
@@ -71,7 +68,7 @@ func (d *Drone) Start(wg *sync.WaitGroup, radioChan chan []byte) {
 	go func() {
 		defer wg.Done()
 		for msg := range d.DataChan {
-			// log.Printf("drone %s > message received: %s", d.Id, msg)
+			log.Printf("drone %s > message received: %s", d.Id, msg)
 
 			// unmarshall
 			var droneMsg DroneMessage
@@ -87,14 +84,14 @@ func (d *Drone) Start(wg *sync.WaitGroup, radioChan chan []byte) {
 				aMsg := droneMsg.AODVPayload
 
 				if aMsg.TTL < aMsg.HopCount+1 {
-					log.Println("TTL expired, discarding message")
+					// log.Println("TTL expired, discarding message")
 				}
 
-				log.Printf("Drone %s routing table: ", d.Id)
+				// log.Printf("Drone %s routing table: ", d.Id)
 
-				for _, e := range d.AODVListener.RoutingTable.Entries {
-					log.Println(e.ToString())
-				}
+				// for _, e := range d.AODVListener.RoutingTable.Entries {
+				// 	log.Println(e.ToString())
+				// }
 
 				switch aMsg.Type {
 				case 1:
@@ -304,7 +301,58 @@ func (d *Drone) Start(wg *sync.WaitGroup, radioChan chan []byte) {
 
 				}
 			case "DATA":
-				log.Println("DATA Message received")
+
+				// log.Println("data message received")
+
+				dMsg := droneMsg.DataPayload
+
+				if d.Id != dMsg.RecipientID {
+					if _, exists := d.TransportLayer.ReceivedMessages[dMsg.Checksum]; !exists {
+						// add to received messages map
+						d.TransportLayer.ReceivedMessages[dMsg.Checksum] = time.Now()
+					} else {
+						// log.Printf("%s - I have received this message, ignoring..", d.Id)
+						continue
+					}
+
+					routeExists := d.AODVListener.CheckForRoute(dMsg.RecipientID)
+
+					if routeExists {
+						// get next hop, then send message
+						// propagate message
+						droneMsg.Source = d.Id
+
+						dData, err := json.Marshal(droneMsg)
+						if err != nil {
+							log.Println("error marshalling data message for rebroadcast")
+						}
+
+						radioChan <- dData
+					} else {
+						// send RREQ
+						rreq := DroneMessage{
+							Source: "1",
+							Type:   "AODV",
+							AODVPayload: routing.AODVMessage{
+								Source:                d.Id,
+								Type:                  1,
+								RREQID:                "1738",
+								DestinationId:         dMsg.RecipientID,
+								OriginatorId:          dMsg.SenderID,
+								OriginatorSequenceNum: d.SequenceNumber,
+								UnknownSequenceNum:    true,
+							},
+						}
+
+						data, _ := json.Marshal(rreq)
+
+						radioChan <- data
+					}
+
+				} else {
+					log.Printf("%s - I have received a data message", d.Id)
+				}
+
 			}
 
 		}
@@ -395,6 +443,37 @@ func (d *Drone) Start(wg *sync.WaitGroup, radioChan chan []byte) {
 
 	}
 
+	wg.Add(1)
+	go func() {
+		// handling expired neighbours
+		defer wg.Done()
+		// sending a DATA
+
+		time.Sleep(3 * time.Second)
+
+		if d.Id == "1" {
+
+			reqDMsg := DroneMessage{
+				Source: "1",
+				Type:   "DATA",
+				DataPayload: messaging.DataMessage{
+					Checksum:    "1738",
+					RecipientID: "5",
+					SenderID:    "1",
+					Data:        []byte("Hello"),
+				},
+			}
+
+			data, err := json.Marshal(reqDMsg)
+			if err != nil {
+				log.Println("error marshalling drone message: ", err)
+			}
+
+			radioChan <- data
+			d.SequenceNumber++
+
+		}
+	}()
 }
 
 func (d *Drone) ToString() string {
